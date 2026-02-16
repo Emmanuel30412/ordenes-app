@@ -22,11 +22,11 @@ export default function CutDetail() {
       <div className="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <p className="text-gray-500 text-sm">Desde</p>
-          <p className="font-semibold">{cut.fromDate}</p>
+          <p className="font-semibold">{cut.from}</p>
         </div>
         <div>
           <p className="text-gray-500 text-sm">Hasta</p>
-          <p className="font-semibold">{cut.toDate}</p>
+          <p className="font-semibold">{cut.to}</p>
         </div>
         <div>
           <p className="text-gray-500 text-sm">Total Facturado</p>

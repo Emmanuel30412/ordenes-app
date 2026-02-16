@@ -30,8 +30,8 @@ export default function Cuts() {
               return (
                 <tr key={c.id} className="border-t">
                   <td className="p-2">{c.id.slice(0, 6)}</td>
-                  <td className="p-2 text-center">{c.fromDate} </td>
-                  <td className="p-2 text-center">{c.toDate}</td>
+                  <td className="p-2 text-center">{c.from} </td>
+                  <td className="p-2 text-center">{c.to}</td>
                   {/* 👇 Aquí mostramos los números de orden */}
                 {/**   <td className="p-2 text-center">
                     {c.orders.map(o => o.orderNumber).join(", ")}

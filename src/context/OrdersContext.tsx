@@ -106,6 +106,10 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     setCuts(prev => [cut, ...prev])
   }
 
+  const addCut = (cut: Cut) => {
+    setCuts(prev => [...prev, cut])
+  }
+
   const getToday = () => {
   const today = new Date()
   const offset = today.getTimezoneOffset()
@@ -119,6 +123,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
         orders,
         cuts,
         addOrder,
+        addCut,
         deleteOrder,
         markOrdersAsCut,
         saveCut,

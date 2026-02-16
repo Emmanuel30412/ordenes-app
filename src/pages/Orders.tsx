@@ -60,6 +60,8 @@ export default function Orders() {
     id: cutId,
     fromDate: fromDate || new Date(filteredOrders[0].date).toISOString().slice(0, 10),
     toDate: toDate || new Date(filteredOrders[filteredOrders.length - 1].date).toISOString().slice(0, 10), 
+    from: fromDate || new Date(filteredOrders[0].date).toISOString().slice(0, 10),
+    to: toDate || new Date(filteredOrders[filteredOrders.length - 1].date).toISOString().slice(0, 10),
     totalFacturado,
     totalGastos,
     gananciaReal,
