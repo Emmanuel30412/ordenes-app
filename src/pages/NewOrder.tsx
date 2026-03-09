@@ -2,6 +2,10 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useOrders } from "../context/OrdersContext"
 import { useCatalog } from "../context/CatalogContext"
+import { saveMaterialIfNotExists } from "../api/MaterialRequest"
+import { saveLaborIfNotExists } from "../api/laborService"
+import { saveOrder } from "../api/OrderService"
+import { Alert } from "./Alert"
 
 type Item = {
   description: string
@@ -11,21 +15,20 @@ type Item = {
 }
 
 export default function NewOrder() {
-  const { addOrder,getToday } = useOrders()
+  const { getToday } = useOrders()
   const navigate = useNavigate()
 
   const {
     companies,
-    branchesByCompany,
     materialsCatalog,
     laborCatalog,
     addMaterialToCatalog,
     addLaborToCatalog,
+    saveCompanyAndReload,
   } = useCatalog()
 
   const [orderNumber, setOrderNumber] = useState("")
   const [company, setCompany] = useState("")
-  const [branch, setBranch] = useState("")
   const today = getToday()
   const [date, setDate] = useState(today)
   const [transport, setTransport] = useState(0)
@@ -45,6 +48,15 @@ export default function NewOrder() {
   const [modalType, setModalType] = useState<"material" | "labor">("material")
   const [modalName, setModalName] = useState("")
   const [modalPrice, setModalPrice] = useState(0)
+
+  const [showCompanyModal, setShowCompanyModal] = useState(false)
+  const [newCompanyName, setNewCompanyName] = useState("")
+  const [activeCompanyDropdown, setActiveCompanyDropdown] = useState(false)
+
+  const [alert, setAlert] = useState<{
+    type: "success" | "error" | "warning"
+    message: string
+  } | null>(null)
 
   const inputClass =
     "w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 outline-none"
@@ -125,17 +137,35 @@ export default function NewOrder() {
     setActiveType(null)
   }
 
-  const saveToCatalog = () => {
+  const saveToCatalog = async () => {
+    try {
+      if (modalType === "material") {
+        const saved = await saveMaterialIfNotExists({
+          name: modalName,
+          unitPrice: modalPrice,
+        })
 
+        addMaterialToCatalog(saved)
+      } else {
+        const saved = await saveLaborIfNotExists({
+          name: modalName,
+          unitPrice: modalPrice,
+        })
 
+        addLaborToCatalog(saved)
+      }
 
-    if (modalType === "material") {
-      addMaterialToCatalog({ name: modalName, unitPrice: modalPrice })
-    } else {
-      addLaborToCatalog({ name: modalName, unitPrice: modalPrice })
+      setShowModal(false)
+    } catch (error) {
+      console.error("Error guardando catálogo", error)
+      setAlert({
+        type: "error",
+        message: "Error guardando en catálogo"
+      })
+      setTimeout(() => setAlert(null), 2000)
     }
-    setShowModal(false)
   }
+
 
   // =========================
   // RENDER FILAS
@@ -241,22 +271,51 @@ export default function NewOrder() {
       <h1 className="text-3xl font-bold text-slate-800">
         🛠️ Nueva Orden de Mantenimiento
       </h1>
+      {alert && <Alert type={alert.type} message={alert.message} />}
 
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
-          addOrder({
-            orderNumber,
-            company,
-            branch,
-            date,
-            materials,
-            labor,
-            transport,
-            total: calculateTotal(),
-            status: "Pendiente",
-          })
-          navigate("/orders")
+
+          // VALIDACIONES
+          if (!orderNumber.trim()) {
+            setAlert({
+              type: "warning",
+              message: "Debe ingresar el número de orden"
+            })
+            setTimeout(() => setAlert(null), 2500)
+            return
+          }
+
+          if (!company.trim()) {
+            setAlert({
+              type: "warning",
+              message: "Debe ingresar la empresa"
+            })
+            setTimeout(() => setAlert(null), 2500)
+            return
+          }
+
+          try {
+            await saveOrder({
+              orderNumber,
+              company,
+              date,
+              flgCut: false,
+              materials,
+              labor,
+              transport,
+              total: calculateTotal(),
+            })
+
+            navigate("/orders")
+          } catch (error) {
+            setAlert({
+              type: "error",
+              message: "Error guardando orden"
+            })
+            setTimeout(() => setAlert(null), 2000)
+          }
         }}
         className="space-y-6"
       >
@@ -266,7 +325,7 @@ export default function NewOrder() {
             className={inputClass}
             placeholder="Número de orden"
             value={orderNumber}
-            onChange={(e) => setOrderNumber(e.target.value)}
+            onChange={(e) => setOrderNumber(e.target.value.toUpperCase())}
           />
 
           <input
@@ -276,32 +335,57 @@ export default function NewOrder() {
             onChange={(e) => setDate(e.target.value)}
           />
 
-          <select
-            className={inputClass}
-            value={company}
-            onChange={(e) => {
-              setCompany(e.target.value)
-              setBranch("")
-            }}
-          >
-            <option value="">Empresa</option>
-            {companies.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              className={inputClass}
+              placeholder="Empresa (Ej: SUPER EXPRESS - VILLA FONTANA)"
+              value={company}
+              onFocus={() => setActiveCompanyDropdown(true)}
+              onChange={(e) => {
+                setCompany(e.target.value.toUpperCase())
+                setActiveCompanyDropdown(true)
+              }}
+            />
 
-          <select
-            className={inputClass}
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-            disabled={!company}
-          >
-            <option value="">Sucursal</option>
-            {company &&
-              branchesByCompany[company]?.map((b) => (
-                <option key={b}>{b}</option>
-              ))}
-          </select>
+            {/* Dropdown */}
+            {activeCompanyDropdown && company && (
+              <div className="absolute bg-white border rounded-xl shadow w-full top-11 z-20 max-h-40 overflow-auto">
+                {companies
+                  .filter((c) =>
+                    c.toLowerCase().includes(company.toLowerCase())
+                  )
+                  .map((c) => (
+                    <div
+                      key={c}
+                      className="px-3 py-2 hover:bg-blue-100 cursor-pointer text-sm"
+                      onMouseDown={() => {
+                        setCompany(c)
+                        setActiveCompanyDropdown(false)
+                      }}
+                    >
+                      {c}
+                    </div>
+                  ))}
+
+                {/* Si no hay coincidencias */}
+                {companies.filter((c) =>
+                  c.toLowerCase().includes(company.toLowerCase())
+                ).length === 0 && (
+                    <div
+                      className="px-3 py-2 text-blue-600 cursor-pointer hover:bg-blue-50 text-sm"
+                      onMouseDown={() => {
+                        setNewCompanyName(company)
+                        setShowCompanyModal(true)
+                        setActiveCompanyDropdown(false)
+                      }}
+                    >
+                      ➕ Crear "{company}"
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Materiales */}
@@ -394,6 +478,44 @@ export default function NewOrder() {
               <button
                 onClick={saveToCatalog}
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCompanyModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-80">
+            <h3 className="font-bold mb-4">Nueva Empresa</h3>
+
+            <input
+              className={inputClass}
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowCompanyModal(false)}>
+                Cancelar
+              </button>
+
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded"
+                onClick={async () => {
+                  await saveCompanyAndReload(newCompanyName)
+
+                  setCompany(newCompanyName)
+                  setShowCompanyModal(false)
+                  setNewCompanyName("")
+                  setAlert({
+                    type: "success",
+                    message: "Información guardada correctamente"
+                  })
+                  setTimeout(() => setAlert(null), 2000)
+                }}
               >
                 Guardar
               </button>

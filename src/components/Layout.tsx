@@ -4,7 +4,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-slate-100">
       {/* Sidebar */}
-     <aside className="w-64 bg-gradient-to-b from-slate-800 to-slate-900 text-white flex flex-col">
+     <aside className="w-64 bg-gradient-to-b from-slate-800 to-slate-900 text-white flex flex-col sticky top-0 h-screen">
 
         <div className="p-5 text-xl font-bold flex items-center gap-2">
           🛠️ Gestión de Mantenimientos

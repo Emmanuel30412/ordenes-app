@@ -1,11 +1,47 @@
 import { useParams, Link } from "react-router-dom"
-import { useOrders } from "../context/OrdersContext"
+import { useEffect, useState } from "react"
+import { getOrderById } from "../api/OrderService"
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>()
-  const { orders } = useOrders()
+  const [order, setOrder] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const order = orders.find(o => o.id === Number(id))
+  useEffect(() => {
+    const loadOrder = async () => {
+      try {
+        if (!id) return
+
+        const data = await getOrderById(Number(id))
+
+        const materials =
+          data.items?.filter((i: any) => i.type === "MATERIAL") || []
+
+        const labor =
+          data.items?.filter((i: any) => i.type === "LABOR") || []
+
+        setOrder({
+          ...data,
+          materials,
+          labor,
+        })
+      } catch (error) {
+        console.error("Error cargando orden", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadOrder()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <p className="text-gray-600 font-semibold">Cargando orden...</p>
+      </div>
+    )
+  }
 
   if (!order) {
     return (
@@ -51,7 +87,7 @@ export default function OrderDetail() {
             </tr>
           </thead>
           <tbody>
-            {order.materials.map((m, i) => (
+            {order.materials.map((m: any, i: number) => (
               <tr key={i} className="border-t">
                 <td className="p-2">{m.description}</td>
                 <td className="p-2 text-center">{m.quantity}</td>
@@ -83,7 +119,7 @@ export default function OrderDetail() {
             </tr>
           </thead>
           <tbody>
-            {order.labor.map((l, i) => (
+            {order.labor.map((l: any, i: number) => (
               <tr key={i} className="border-t">
                 <td className="p-2">{l.description}</td>
                 <td className="p-2 text-center">{l.quantity}</td>

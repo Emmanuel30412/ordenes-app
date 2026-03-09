@@ -2,29 +2,12 @@ import { Link } from "react-router-dom"
 import { useOrders } from "../context/OrdersContext"
 import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
-import { useState, useMemo } from "react"
 
 export default function Cuts() {
   const { cuts } = useOrders()
 
   console.log("Cortes cargados:", cuts)
 
-  // 🔹 PAGINACIÓN
-  const [page, setPage] = useState(0)
-  const pageSize = 10
-
-  // ordenamos cortes por id descendente (más reciente primero)
-  // useMemo para evitar reordenar en cada renderizado si cuts no cambia
-  const orderedCuts = useMemo(() => {
-    return [...cuts].sort((a, b) => b.id - a.id)
-  }, [cuts])
-
-  const totalPages = Math.ceil(orderedCuts.length / pageSize)
-
-  const paginatedCuts = orderedCuts.slice(
-    page * pageSize,
-    page * pageSize + pageSize
-  )
 
   const exportCut = (cut) => {
 
@@ -65,6 +48,7 @@ export default function Cuts() {
 
     })
 
+    // fila total del corte
     rows.push({
       Orden: "",
       SE: "",
@@ -109,33 +93,28 @@ export default function Cuts() {
               <th className="p-2">Orden</th>
               <th className="p-2">Desde</th>
               <th className="p-2">Hasta</th>
+              {/**<th className="p-2">Órdenes</th>**/}
               <th className="p-2">Facturado</th>
               <th className="p-2">Gastos</th>
               <th className="p-2">Ganancia</th>
               <th className="p-2">Acciones</th>
             </tr>
           </thead>
-
           <tbody>
-            {paginatedCuts.map((c) => {
+            {cuts.map((c) => {
               return (
                 <tr key={c.id} className="border-t">
                   <td className="p-2">{c.orders[0].orderNumber}</td>
-                  <td className="p-2 text-center">{c.fromDate}</td>
+                  <td className="p-2 text-center">{c.fromDate} </td>
                   <td className="p-2 text-center">{c.toDate}</td>
+                  {/* 👇 Aquí mostramos los números de orden */}
+                  {/**   <td className="p-2 text-center">
+                    {c.orders.map(o => o.orderNumber).join(", ")}
+                  </td>**/}
 
-                  <td className="p-2 text-center">
-                    C$ {c.totalFacturado.toFixed(2)}
-                  </td>
-
-                  <td className="p-2 text-center text-red-600">
-                    C$ {c.totalGastos.toFixed(2)}
-                  </td>
-
-                  <td className="p-2 text-center text-green-600">
-                    C$ {c.gananciaReal.toFixed(2)}
-                  </td>
-
+                  <td className="p-2 text-center">C$ {c.totalFacturado.toFixed(2)}</td>
+                  <td className="p-2 text-center text-red-600">C$ {c.totalGastos.toFixed(2)}</td>
+                  <td className="p-2 text-center text-green-600">C$ {c.gananciaReal.toFixed(2)}</td>
                   <td className="p-2 text-center space-x-3">
 
                     <Link
@@ -147,7 +126,7 @@ export default function Cuts() {
 
                     <button
                       onClick={() => exportCut(c)}
-                      className="text-blue-600 hover:underline"
+                      className="text-green-600 hover:underline"
                     >
                       Imprimir
                     </button>
@@ -159,34 +138,6 @@ export default function Cuts() {
           </tbody>
         </table>
       </div>
-
-      {/* CONTROLES PAGINACIÓN */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-6">
-
-          <button
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-            className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300 disabled:opacity-40"
-          >
-            ⬅
-          </button>
-
-          <span className="text-sm text-gray-600">
-            Página {page + 1} de {totalPages}
-          </span>
-
-          <button
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage(page + 1)}
-            className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300 disabled:opacity-40"
-          >
-            ➡
-          </button>
-
-        </div>
-      )}
-
     </div>
   )
 }

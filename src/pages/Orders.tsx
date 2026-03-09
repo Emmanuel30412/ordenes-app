@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useOrders } from "../context/OrdersContext"
+import { getOrders } from "../api/OrderService"
+import { createCut } from "../api/CutService"
+import { Alert } from "./Alert"
 
 type Expense = { name: string; amount: number; checked: boolean }
 
@@ -11,13 +14,18 @@ const defaultExpenses: Expense[] = [
 ]
 
 export default function Orders() {
-  const { orders, deleteOrder, markOrdersAsCut, saveCut, getToday } = useOrders()
-
+  const { deleteOrder, getToday, saveCut } = useOrders()
   const today = getToday()
   const [fromDate, setFromDate] = useState(today)
   const [toDate, setToDate] = useState(today)
   const [expenses, setExpenses] = useState<Expense[]>(defaultExpenses)
   const [newExpense, setNewExpense] = useState("")
+  const [orders, setOrders] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [alert, setAlert] = useState<{
+    type: "success" | "error" | "warning"
+    message: string
+  } | null>(null)
 
   // 🔎 Filtro por rango y no cortadas
   const filteredOrders = useMemo(() => {
@@ -25,9 +33,13 @@ export default function Orders() {
       const d = new Date(o.date).getTime()
       const from = fromDate ? new Date(fromDate).getTime() : -Infinity
       const to = toDate ? new Date(toDate).getTime() : Infinity
-      return d >= from && d <= to && !o.isCut
+      return d >= from && d <= to && !o.flgCut
     })
   }, [orders, fromDate, toDate])
+
+  useEffect(() => {
+    loadOrders()
+  }, [])
 
   const totalFacturado = filteredOrders.reduce((s, o) => s + o.total, 0)
   const totalGastos = expenses.filter(e => e.checked).reduce((s, e) => s + e.amount, 0)
@@ -51,39 +63,90 @@ export default function Orders() {
     setNewExpense("")
   }
 
-  const makeCut = () => {
-  if (filteredOrders.length === 0) return alert("No hay órdenes en el rango")
+  const makeCut = async () => {
 
-  const cutId = crypto.randomUUID()
+    if (filteredOrders.length === 0)
+      return alert("No hay órdenes en el rango")
 
-  const cut = {
-    id: cutId,
-    fromDate: fromDate || new Date(filteredOrders[0].date).toISOString().slice(0, 10),
-    toDate: toDate || new Date(filteredOrders[filteredOrders.length - 1].date).toISOString().slice(0, 10), 
-    from: fromDate || new Date(filteredOrders[0].date).toISOString().slice(0, 10),
-    to: toDate || new Date(filteredOrders[filteredOrders.length - 1].date).toISOString().slice(0, 10),
-    totalFacturado,
-    totalGastos,
-    gananciaReal,
-    gastos: expenses.filter(e => e.checked),
-    
-    orders: filteredOrders.map(o => ({
-      orderId: o.id,
-      orderNumber: o.orderNumber,
-      company: o.company,
-      total: o.total,
-    })),
+    const selectedExpenses = expenses
+      .filter(e => e.checked)
+      .map(e => ({
+        name: e.name,
+        amount: e.amount
+      }))
 
-    createdAt: new Date().toISOString(),
+    const totalFacturado = filteredOrders.reduce((s, o) => s + o.total, 0)
+    const totalGastos = selectedExpenses.reduce((s, e) => s + e.amount, 0)
+    const gananciaReal = totalFacturado - totalGastos
+
+    const cutRequest = {
+      fromDate,
+      toDate,
+      totalFacturado,
+      totalGastos,
+      gananciaReal,
+      orderIds: filteredOrders.map(o => o.id),
+      gastos: selectedExpenses
+    }
+
+    try {
+      await createCut(cutRequest)
+
+      await saveCut({} as any)  // 🔥 guardamos en backend
+      setAlert({
+        type: "success",
+        message: "Corte guardado correctamente"
+      })
+
+      await loadOrders()   // 🔥 recarga desde backend
+    } catch (error) {
+      console.error(error)
+      setAlert({
+        type: "error",
+        message: "Error creando corte"
+      })
+    }
   }
-  saveCut(cut)
-  markOrdersAsCut(filteredOrders.map(o => o.id), cutId)
-}
 
+  // Carga órdenes desde backend y formatea materiales/labor
+  const loadOrders = async () => {
+    try {
+      setLoading(true)
+
+      const data = await getOrders()
+      console.log("Órdenes cargadas:", data)
+
+      const formatted = data.map((order: any) => {
+        const materials = order.items?.filter(
+          (i: any) => i.type === "MATERIAL"
+        ) || []
+
+        const labor = order.items?.filter(
+          (i: any) => i.type === "LABOR"
+        ) || []
+
+        return {
+          ...order,
+          materials,
+          labor,
+        }
+      })
+
+      setOrders(formatted)
+
+    } catch (error) {
+      console.error("Error cargando órdenes", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-4">
       <h1 className="text-2xl font-bold">📊 Órdenes & Cortes</h1>
+      {alert && (
+        <Alert type={alert.type} message={alert.message} />
+      )}
 
       {/* Filtros */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-white p-4 rounded-xl shadow">
@@ -110,17 +173,26 @@ export default function Orders() {
           </thead>
           <tbody>
             {filteredOrders.map((o) => (
+
               <tr key={o.id} className="border-t hover:bg-blue-50">
                 <td className="p-2">{o.orderNumber}</td>
                 <td className="p-2">{o.date}</td>
-                <td className="p-2">{o.branch}</td>
+                <td className="p-2">{o.company}</td>
                 <td className="p-2 text-right">C$ {o.total.toFixed(2)}</td>
                 <td className="p-2 text-center flex gap-3 justify-center">
                   <Link to={`/orders/${o.id}`} className="text-blue-600 hover:underline">
                     Ver
                   </Link>
                   <button
-                    onClick={() => deleteOrder(o.id)}
+                    onClick={async () => {
+                      await deleteOrder(o.id)
+                      await loadOrders()
+                      setAlert({
+                        type: "success",
+                        message: "Orden eliminada correctamente"
+                      })
+                      setTimeout(() => setAlert(null), 2000)
+                    }}
                     className="text-red-600 hover:underline"
                   >
                     Eliminar
@@ -179,14 +251,6 @@ export default function Orders() {
           className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
         >
           ✂️ Hacer corte
-        </button>
-
-        <button
-          title="Imprimir reporte"
-          onClick={() => window.print()}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-full shadow hover:bg-indigo-700"
-        >
-          🖨️
         </button>
       </div>
     </div>

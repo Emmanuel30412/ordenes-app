@@ -6,7 +6,8 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { getAllMaterials } from "../api/MaterialRequest"
 import { getAllLabor } from "../api/laborService"
-import { saveCompany, getAllCompanies } from "../api/companyService"
+import { saveCompany } from "../api/companyService"
+import { getAllCompanies } from "../api/companyService"
 
 type CatalogItem = {
   id?: number
@@ -16,14 +17,15 @@ type CatalogItem = {
 
 type CatalogContextType = {
   companies: string[]
+  branchesByCompany: Record<string, string[]>
   materialsCatalog: CatalogItem[]
   laborCatalog: CatalogItem[]
   addMaterialToCatalog: (item: CatalogItem) => void
   addLaborToCatalog: (item: CatalogItem) => void
   reloadCatalogs: () => Promise<void>
   loading: boolean
+  saveCompany: (name: string) => Promise<void>
   getAllCompanies: () => Promise<void>
-  saveCompanyAndReload: (name: string) => Promise<void>
 }
 
 //creando el contenedor global para los catálogos, empresas y sucursales
@@ -36,7 +38,13 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   const [materialsCatalog, setMaterialsCatalog] = useState<CatalogItem[]>([])
   const [laborCatalog, setLaborCatalog] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [companies, setCompanies] = useState<string[]>([])
+
+  const companies = ["Super 1", "La Colonia"]
+
+  const branchesByCompany: Record<string, string[]> = {
+    "Super 1": ["Sucursal Centro", "Sucursal Norte"],
+    "La Colonia": ["Altamira", "Carretera Sur"],
+  }
 
   // 🔥 CARGA AUTOMÁTICA AL RECARGAR PAGINA
   useEffect(() => {
@@ -49,13 +57,9 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
       const materials = await getAllMaterials()
       const labor = await getAllLabor()
-      const companiesFromDb = await getAllCompanies()
       
       setMaterialsCatalog(materials)
       setLaborCatalog(labor)
-
-       // si el backend devuelve objetos {id, name}
-     setCompanies(companiesFromDb.map((c: any) => c.name))
 
     } catch (error) {
       console.error("Error cargando catalogos", error)
@@ -81,24 +85,20 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
-  const saveCompanyAndReload = async (name: string) => {
-    await saveCompany(name)
-    await reloadCatalogs()
-  }
-
 
   return (
     <CatalogContext.Provider
       value={{
         companies,
+        branchesByCompany,
         materialsCatalog,
         laborCatalog,
         addMaterialToCatalog,
         addLaborToCatalog,
         reloadCatalogs,
         loading,
-        getAllCompanies,
-        saveCompanyAndReload
+        saveCompany,
+        getAllCompanies
       }}
     >
       {children}
